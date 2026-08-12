@@ -23,7 +23,7 @@
     </svg>
   </div>
 
-  <div class="app">
+  <div class="app hidden" id="app">
     <header class="app-header">
       <svg class="header-logo" viewBox="0 0 300 300" width="64" height="64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TrackExpense">
         <defs>
@@ -38,6 +38,10 @@
           <text x="150" y="158" clip-path="url(#bottomHalfHeader)" fill="#25272a">TrackExpense</text>
         </g>
       </svg>
+      <div class="user-bar">
+        <span id="userEmailLabel"></span>
+        <button id="logoutBtn" class="link-btn">Log out</button>
+      </div>
       <div class="month-nav">
         <button id="prevMonth" class="icon-btn" aria-label="Previous month">&#8592;</button>
         <h2 id="monthLabel"></h2>
@@ -56,6 +60,22 @@
         <div class="summary-total" id="summaryTotal">$0.00</div>
         <div class="summary-breakdown" id="summaryBreakdown"></div>
       </section>
+    </div>
+  </div>
+
+  <div class="auth-screen hidden" id="authScreen">
+    <div class="auth-card">
+      <h2 id="authTitle">Sign in</h2>
+      <form id="authForm">
+        <input id="authEmail" type="email" placeholder="Email" autocomplete="email" required>
+        <input id="authPassword" type="password" placeholder="Password" autocomplete="current-password" minlength="6" required>
+        <div class="auth-error" id="authError"></div>
+        <button type="submit" class="add-btn" id="authSubmitBtn">Sign in</button>
+      </form>
+      <p class="auth-toggle">
+        <span id="authToggleText">Don't have an account?</span>
+        <button type="button" id="authToggleBtn" class="link-btn">Sign up</button>
+      </p>
     </div>
   </div>
 
@@ -81,6 +101,6 @@
     </div>
   </div>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

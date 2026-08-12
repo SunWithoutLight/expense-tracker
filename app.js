@@ -1,5 +1,9 @@
-const STORAGE_KEY = "expenseTrackerData";
-const BUDGET_KEY = "expenseTrackerBudgets";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = "https://agvismgwikfdfqqusufw.supabase.co";
+const SUPABASE_KEY = "sb_publishable_065WQ02-mdoTiCGGHV72fg_sfKosqVz";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const CATEGORIES = [
   "Food", "Transport", "Housing", "Utilities",
   "Entertainment", "Health", "Shopping", "Other"
@@ -9,33 +13,9 @@ const state = {
   viewYear: new Date().getFullYear(),
   viewMonth: new Date().getMonth(), // 0-indexed
   selectedDate: null, // "YYYY-MM-DD"
-  data: loadData(),
-  budgets: loadBudgets()
+  data: {},
+  budgets: {}
 };
-
-function loadData() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-  } catch {
-    return {};
-  }
-}
-
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
-}
-
-function loadBudgets() {
-  try {
-    return JSON.parse(localStorage.getItem(BUDGET_KEY)) || {};
-  } catch {
-    return {};
-  }
-}
-
-function saveBudgets() {
-  localStorage.setItem(BUDGET_KEY, JSON.stringify(state.budgets));
-}
 
 function pad(n) { return String(n).padStart(2, "0"); }
 
@@ -50,6 +30,68 @@ function formatMoney(n) {
 function dayTotal(key) {
   const entries = state.data[key] || [];
   return entries.reduce((sum, e) => sum + e.amount, 0);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ---------- Supabase data access ----------
+
+async function fetchExpenses() {
+  const { data, error } = await supabase.from("expenses").select("*").order("entry_date");
+  if (error) { console.error(error); return {}; }
+  const grouped = {};
+  data.forEach(row => {
+    if (!grouped[row.entry_date]) grouped[row.entry_date] = [];
+    grouped[row.entry_date].push({
+      id: row.id,
+      category: row.category,
+      amount: Number(row.amount),
+      note: row.note || ""
+    });
+  });
+  return grouped;
+}
+
+async function fetchBudgets() {
+  const { data, error } = await supabase.from("budgets").select("*");
+  if (error) { console.error(error); return {}; }
+  const map = {};
+  data.forEach(row => { map[row.category] = Number(row.amount); });
+  return map;
+}
+
+async function insertExpense(key, category, amount, note) {
+  const { data, error } = await supabase
+    .from("expenses")
+    .insert({ entry_date: key, category, amount, note })
+    .select()
+    .single();
+  if (error) {
+    alert("Couldn't save that expense: " + error.message);
+    return null;
+  }
+  return { id: data.id, category: data.category, amount: Number(data.amount), note: data.note || "" };
+}
+
+async function removeExpense(id) {
+  const { error } = await supabase.from("expenses").delete().eq("id", id);
+  if (error) alert("Couldn't delete that expense: " + error.message);
+}
+
+async function upsertBudget(category, amount) {
+  const { error } = await supabase
+    .from("budgets")
+    .upsert({ category, amount }, { onConflict: "user_id,category" });
+  if (error) alert("Couldn't save that budget: " + error.message);
+}
+
+async function removeBudget(category) {
+  const { error } = await supabase.from("budgets").delete().eq("category", category);
+  if (error) alert("Couldn't remove that budget: " + error.message);
 }
 
 // ---------- Calendar rendering ----------
@@ -192,16 +234,17 @@ function renderSummary() {
   }
 }
 
-summaryBreakdown.addEventListener("change", (e) => {
+summaryBreakdown.addEventListener("change", async (e) => {
   if (!e.target.classList.contains("budget-input")) return;
   const cat = e.target.dataset.category;
   const value = parseFloat(e.target.value);
   if (!value || value <= 0) {
     delete state.budgets[cat];
+    await removeBudget(cat);
   } else {
     state.budgets[cat] = value;
+    await upsertBudget(cat, value);
   }
-  saveBudgets();
   renderSummary();
 });
 
@@ -278,7 +321,7 @@ function renderEntries() {
       li.className = "entry-row";
       li.innerHTML = `
         <div class="entry-info">
-          <span class="entry-category">${entry.category}</span>
+          <span class="entry-category">${escapeHtml(entry.category)}</span>
           ${entry.note ? `<span class="entry-note">${escapeHtml(entry.note)}</span>` : ""}
         </div>
         <div class="entry-amount">${formatMoney(entry.amount)}</div>
@@ -294,13 +337,7 @@ function renderEntries() {
   dayTotalEl.textContent = `Day total: ${formatMoney(dayTotal(key))}`;
 }
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-entryForm.addEventListener("submit", (e) => {
+entryForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const key = state.selectedDate;
   const amount = parseFloat(amountInput.value);
@@ -312,15 +349,16 @@ entryForm.addEventListener("submit", (e) => {
     if (custom) category = custom;
   }
 
-  if (!state.data[key]) state.data[key] = [];
-  state.data[key].push({
-    id: Date.now() + Math.random().toString(36).slice(2),
-    category,
-    amount,
-    note: noteInput.value.trim()
-  });
+  const note = noteInput.value.trim();
+  const submitBtn = entryForm.querySelector(".add-btn");
+  submitBtn.disabled = true;
+  const saved = await insertExpense(key, category, amount, note);
+  submitBtn.disabled = false;
+  if (!saved) return;
 
-  saveData();
+  if (!state.data[key]) state.data[key] = [];
+  state.data[key].push(saved);
+
   amountInput.value = "";
   noteInput.value = "";
   customCategoryInput.value = "";
@@ -330,10 +368,10 @@ entryForm.addEventListener("submit", (e) => {
   renderCalendar();
 });
 
-function deleteEntry(key, id) {
+async function deleteEntry(key, id) {
+  await removeExpense(id);
   state.data[key] = (state.data[key] || []).filter(e => e.id !== id);
   if (state.data[key].length === 0) delete state.data[key];
-  saveData();
   renderEntries();
   renderCalendar();
 }
@@ -352,7 +390,101 @@ document.getElementById("nextMonth").addEventListener("click", () => {
   renderCalendar();
 });
 
-renderCalendar();
+// ---------- Auth ----------
+
+const appEl = document.getElementById("app");
+const authScreen = document.getElementById("authScreen");
+const authForm = document.getElementById("authForm");
+const authEmail = document.getElementById("authEmail");
+const authPassword = document.getElementById("authPassword");
+const authError = document.getElementById("authError");
+const authTitle = document.getElementById("authTitle");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const authToggleBtn = document.getElementById("authToggleBtn");
+const authToggleText = document.getElementById("authToggleText");
+const userEmailLabel = document.getElementById("userEmailLabel");
+const logoutBtn = document.getElementById("logoutBtn");
+
+let authMode = "signin";
+
+function updateAuthMode() {
+  authError.textContent = "";
+  if (authMode === "signin") {
+    authTitle.textContent = "Sign in";
+    authSubmitBtn.textContent = "Sign in";
+    authToggleText.textContent = "Don't have an account?";
+    authToggleBtn.textContent = "Sign up";
+  } else {
+    authTitle.textContent = "Create account";
+    authSubmitBtn.textContent = "Sign up";
+    authToggleText.textContent = "Already have an account?";
+    authToggleBtn.textContent = "Sign in";
+  }
+}
+
+authToggleBtn.addEventListener("click", () => {
+  authMode = authMode === "signin" ? "signup" : "signin";
+  updateAuthMode();
+});
+
+authForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  authError.textContent = "";
+  authSubmitBtn.disabled = true;
+
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+
+  try {
+    if (authMode === "signin") {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      if (!data.session) {
+        authMode = "signin";
+        updateAuthMode();
+        authError.style.color = "var(--success)";
+        authError.textContent = "Account created — check your email to confirm, then sign in.";
+      }
+    }
+  } catch (err) {
+    authError.style.color = "var(--danger)";
+    authError.textContent = err.message;
+  } finally {
+    authSubmitBtn.disabled = false;
+  }
+});
+
+logoutBtn.addEventListener("click", async () => {
+  await supabase.auth.signOut();
+});
+
+async function showApp(user) {
+  authScreen.classList.add("hidden");
+  appEl.classList.remove("hidden");
+  userEmailLabel.textContent = user.email;
+  state.data = await fetchExpenses();
+  state.budgets = await fetchBudgets();
+  renderCalendar();
+}
+
+function showAuth() {
+  appEl.classList.add("hidden");
+  authScreen.classList.remove("hidden");
+  authForm.reset();
+  authMode = "signin";
+  updateAuthMode();
+}
+
+supabase.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    showApp(session.user);
+  } else {
+    showAuth();
+  }
+});
 
 // ---------- Splash intro ----------
 
