@@ -1,4 +1,5 @@
 const STORAGE_KEY = "expenseTrackerData";
+const BUDGET_KEY = "expenseTrackerBudgets";
 const CATEGORIES = [
   "Food", "Transport", "Housing", "Utilities",
   "Entertainment", "Health", "Shopping", "Other"
@@ -8,7 +9,8 @@ const state = {
   viewYear: new Date().getFullYear(),
   viewMonth: new Date().getMonth(), // 0-indexed
   selectedDate: null, // "YYYY-MM-DD"
-  data: loadData()
+  data: loadData(),
+  budgets: loadBudgets()
 };
 
 function loadData() {
@@ -21,6 +23,18 @@ function loadData() {
 
 function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+}
+
+function loadBudgets() {
+  try {
+    return JSON.parse(localStorage.getItem(BUDGET_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveBudgets() {
+  localStorage.setItem(BUDGET_KEY, JSON.stringify(state.budgets));
 }
 
 function pad(n) { return String(n).padStart(2, "0"); }
@@ -108,7 +122,6 @@ function renderSummary() {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
   const totals = {};
-  CATEGORIES.forEach(c => totals[c] = 0);
   let monthTotal = 0;
 
   for (let day = 1; day <= daysInMonth; day++) {
@@ -123,29 +136,74 @@ function renderSummary() {
   summaryTotal.textContent = formatMoney(monthTotal);
   summaryBreakdown.innerHTML = "";
 
-  if (monthTotal === 0) {
+  const allCategories = new Set([
+    ...CATEGORIES,
+    ...Object.keys(state.budgets),
+    ...Object.keys(totals)
+  ]);
+
+  const orderedCategories = [
+    ...CATEGORIES.filter(c => allCategories.has(c)),
+    ...[...allCategories].filter(c => !CATEGORIES.includes(c)).sort()
+  ];
+
+  orderedCategories.forEach(cat => {
+    const spent = totals[cat] || 0;
+    const budget = state.budgets[cat];
+    const hasBudget = typeof budget === "number" && budget > 0;
+
+    let statusClass = "";
+    let remainingText = "No budget set";
+    let pct = 0;
+
+    if (hasBudget) {
+      const remaining = budget - spent;
+      pct = Math.min((spent / budget) * 100, 100);
+      if (remaining < 0) {
+        statusClass = "status-over";
+        remainingText = `Over by ${formatMoney(-remaining)}`;
+      } else {
+        statusClass = "status-under";
+        remainingText = `Left: ${formatMoney(remaining)}`;
+      }
+    }
+
+    const card = document.createElement("div");
+    card.className = `category-card ${statusClass}`;
+    card.innerHTML = `
+      <div class="category-card-header">
+        <span class="category-name">${escapeHtml(cat)}</span>
+        <input type="number" class="budget-input" data-category="${escapeHtml(cat)}" min="0" step="0.01" placeholder="Budget" value="${hasBudget ? budget : ""}">
+      </div>
+      <div class="category-card-bar-track"><div class="category-card-bar-fill" style="width:${pct}%"></div></div>
+      <div class="category-card-footer">
+        <span class="spent-label">Spent: ${formatMoney(spent)}</span>
+        <span class="remaining-label">${remainingText}</span>
+      </div>
+    `;
+    summaryBreakdown.appendChild(card);
+  });
+
+  if (orderedCategories.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-summary";
     empty.textContent = "No expenses logged this month yet.";
     summaryBreakdown.appendChild(empty);
-    return;
   }
-
-  CATEGORIES
-    .filter(c => totals[c] > 0)
-    .sort((a, b) => totals[b] - totals[a])
-    .forEach(cat => {
-      const pct = (totals[cat] / monthTotal) * 100;
-      const row = document.createElement("div");
-      row.className = "breakdown-row";
-      row.innerHTML = `
-        <div class="breakdown-label">${cat}</div>
-        <div class="breakdown-bar-track"><div class="breakdown-bar-fill" style="width:${pct}%"></div></div>
-        <div class="breakdown-amount">${formatMoney(totals[cat])}</div>
-      `;
-      summaryBreakdown.appendChild(row);
-    });
 }
+
+summaryBreakdown.addEventListener("change", (e) => {
+  if (!e.target.classList.contains("budget-input")) return;
+  const cat = e.target.dataset.category;
+  const value = parseFloat(e.target.value);
+  if (!value || value <= 0) {
+    delete state.budgets[cat];
+  } else {
+    state.budgets[cat] = value;
+  }
+  saveBudgets();
+  renderSummary();
+});
 
 // ---------- Modal ----------
 
@@ -155,9 +213,20 @@ const entryList = document.getElementById("entryList");
 const dayTotalEl = document.getElementById("dayTotal");
 const entryForm = document.getElementById("entryForm");
 const categorySelect = document.getElementById("categorySelect");
+const customCategoryInput = document.getElementById("customCategoryInput");
 const amountInput = document.getElementById("amountInput");
 const noteInput = document.getElementById("noteInput");
 const closeModalBtn = document.getElementById("closeModal");
+
+categorySelect.addEventListener("change", () => {
+  const isOther = categorySelect.value === "Other";
+  customCategoryInput.classList.toggle("hidden", !isOther);
+  if (isOther) {
+    customCategoryInput.focus();
+  } else {
+    customCategoryInput.value = "";
+  }
+});
 
 CATEGORIES.forEach(c => {
   const opt = document.createElement("option");
@@ -176,6 +245,8 @@ function openModal(key) {
   amountInput.value = "";
   noteInput.value = "";
   categorySelect.selectedIndex = 0;
+  customCategoryInput.value = "";
+  customCategoryInput.classList.add("hidden");
 }
 
 function closeModal() {
@@ -235,10 +306,16 @@ entryForm.addEventListener("submit", (e) => {
   const amount = parseFloat(amountInput.value);
   if (!amount || amount <= 0) return;
 
+  let category = categorySelect.value;
+  if (category === "Other") {
+    const custom = customCategoryInput.value.trim();
+    if (custom) category = custom;
+  }
+
   if (!state.data[key]) state.data[key] = [];
   state.data[key].push({
     id: Date.now() + Math.random().toString(36).slice(2),
-    category: categorySelect.value,
+    category,
     amount,
     note: noteInput.value.trim()
   });
@@ -246,6 +323,9 @@ entryForm.addEventListener("submit", (e) => {
   saveData();
   amountInput.value = "";
   noteInput.value = "";
+  customCategoryInput.value = "";
+  customCategoryInput.classList.add("hidden");
+  categorySelect.selectedIndex = 0;
   renderEntries();
   renderCalendar();
 });
@@ -273,3 +353,14 @@ document.getElementById("nextMonth").addEventListener("click", () => {
 });
 
 renderCalendar();
+
+// ---------- Splash intro ----------
+
+const splash = document.getElementById("splash");
+if (splash) {
+  setTimeout(() => {
+    splash.style.transition = "opacity 0.6s ease";
+    splash.style.opacity = "0";
+    splash.addEventListener("transitionend", () => splash.remove(), { once: true });
+  }, 3000);
+}
