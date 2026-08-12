@@ -25,7 +25,19 @@
 
   <div class="app">
     <header class="app-header">
-      <h1>Expense Tracker</h1>
+      <svg class="header-logo" viewBox="0 0 300 300" width="64" height="64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TrackExpense">
+        <defs>
+          <clipPath id="topHalfHeader"><rect x="0" y="0" width="300" height="150"/></clipPath>
+          <clipPath id="bottomHalfHeader"><rect x="0" y="150" width="300" height="150"/></clipPath>
+        </defs>
+        <rect x="0" y="0" width="300" height="150" fill="#71767b"/>
+        <rect x="0" y="150" width="300" height="150" fill="#d3d5d7"/>
+        <rect x="0" y="148" width="300" height="4" fill="#2e2f31" opacity="0.35"/>
+        <g font-family="Georgia, 'Times New Roman', serif" font-size="27" letter-spacing="1.5" text-anchor="middle">
+          <text x="150" y="158" clip-path="url(#topHalfHeader)" fill="#f6f6f6">TrackExpense</text>
+          <text x="150" y="158" clip-path="url(#bottomHalfHeader)" fill="#25272a">TrackExpense</text>
+        </g>
+      </svg>
       <div class="month-nav">
         <button id="prevMonth" class="icon-btn" aria-label="Previous month">&#8592;</button>
         <h2 id="monthLabel"></h2>
