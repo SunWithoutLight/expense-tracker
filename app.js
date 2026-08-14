@@ -448,3 +448,13 @@ if (splash) {
     splash.addEventListener("transitionend", () => splash.remove(), { once: true });
   }, 3000);
 }
+
+// ---------- PWA service worker ----------
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch((err) => {
+      console.error("Service worker registration failed:", err);
+    });
+  });
+}
