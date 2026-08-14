@@ -116,6 +116,7 @@ function renderCalendar() {
 
 const summaryTotal = document.getElementById("summaryTotal");
 const summaryBreakdown = document.getElementById("summaryBreakdown");
+const paceList = document.getElementById("paceList");
 
 function renderSummary() {
   const { viewYear, viewMonth } = state;
@@ -151,6 +152,9 @@ function renderSummary() {
   const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
   const daysElapsed = isCurrentMonth ? today.getDate() : 0;
 
+  paceList.innerHTML = "";
+  let paceCount = 0;
+
   orderedCategories.forEach(cat => {
     const spent = totals[cat] || 0;
     const budget = state.budgets[cat];
@@ -159,7 +163,6 @@ function renderSummary() {
     let statusClass = "";
     let remainingText = "No budget set";
     let pct = 0;
-    let trendHtml = "";
 
     if (hasBudget) {
       const remaining = budget - spent;
@@ -180,7 +183,15 @@ function renderSummary() {
         const trendText = diff > 0
           ? `Trending ${formatMoney(diff)} over pace (projected ${formatMoney(projected)})`
           : `On track — ${formatMoney(-diff)} to spare (projected ${formatMoney(projected)})`;
-        trendHtml = `<div class="trend-line ${trendClass}">${trendText}</div>`;
+
+        const paceItem = document.createElement("div");
+        paceItem.className = "pace-item";
+        paceItem.innerHTML = `
+          <div class="pace-item-category">${escapeHtml(cat)}</div>
+          <div class="pace-item-trend ${trendClass}">${trendText}</div>
+        `;
+        paceList.appendChild(paceItem);
+        paceCount++;
       }
     }
 
@@ -196,7 +207,6 @@ function renderSummary() {
         <span class="spent-label">Spent: ${formatMoney(spent)}</span>
         <span class="remaining-label">${remainingText}</span>
       </div>
-      ${trendHtml}
     `;
     summaryBreakdown.appendChild(card);
   });
@@ -206,6 +216,15 @@ function renderSummary() {
     empty.className = "empty-summary";
     empty.textContent = "No expenses logged this month yet.";
     summaryBreakdown.appendChild(empty);
+  }
+
+  if (paceCount === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-summary";
+    empty.textContent = isCurrentMonth
+      ? "Set a budget on a category to see its pace here."
+      : "Pacing only applies to the current month.";
+    paceList.appendChild(empty);
   }
 }
 
