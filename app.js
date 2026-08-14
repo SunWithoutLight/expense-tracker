@@ -1,5 +1,6 @@
 const STORAGE_KEY = "expenseTrackerData";
 const BUDGET_KEY = "expenseTrackerBudgets";
+const PACE_OVERRIDE_KEY = "expenseTrackerPaceOverrides";
 const CATEGORIES = [
   "Food", "Transport", "Housing", "Utilities",
   "Entertainment", "Health", "Shopping", "Other"
@@ -10,7 +11,8 @@ const state = {
   viewMonth: new Date().getMonth(), // 0-indexed
   selectedDate: null, // "YYYY-MM-DD"
   data: loadData(),
-  budgets: loadBudgets()
+  budgets: loadBudgets(),
+  paceOverrides: loadPaceOverrides() // { "YYYY-MM": { category: true } }
 };
 
 function loadData() {
@@ -35,6 +37,18 @@ function loadBudgets() {
 
 function saveBudgets() {
   localStorage.setItem(BUDGET_KEY, JSON.stringify(state.budgets));
+}
+
+function loadPaceOverrides() {
+  try {
+    return JSON.parse(localStorage.getItem(PACE_OVERRIDE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function savePaceOverrides() {
+  localStorage.setItem(PACE_OVERRIDE_KEY, JSON.stringify(state.paceOverrides));
 }
 
 function pad(n) { return String(n).padStart(2, "0"); }
@@ -151,6 +165,8 @@ function renderSummary() {
   const today = new Date();
   const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
   const daysElapsed = isCurrentMonth ? today.getDate() : 0;
+  const monthKey = `${viewYear}-${pad(viewMonth + 1)}`;
+  const overridesForMonth = state.paceOverrides[monthKey] || {};
 
   paceList.innerHTML = "";
   let paceCount = 0;
@@ -176,20 +192,31 @@ function renderSummary() {
       }
 
       if (isCurrentMonth && daysElapsed > 0) {
-        const dailyAvg = spent / daysElapsed;
-        const projected = dailyAvg * daysInMonth;
-        const diff = projected - budget;
-        const trendClass = diff > 0 ? "trend-over" : "trend-under";
-        const trendText = diff > 0
-          ? `Trending ${formatMoney(diff)} over pace (projected ${formatMoney(projected)})`
-          : `On track — ${formatMoney(-diff)} to spare (projected ${formatMoney(projected)})`;
-
+        const isMuted = !!overridesForMonth[cat];
         const paceItem = document.createElement("div");
-        paceItem.className = "pace-item";
-        paceItem.innerHTML = `
-          <div class="pace-item-category">${escapeHtml(cat)}</div>
-          <div class="pace-item-trend ${trendClass}">${trendText}</div>
-        `;
+        paceItem.dataset.category = cat;
+
+        if (isMuted) {
+          paceItem.className = "pace-item muted";
+          paceItem.innerHTML = `
+            <div class="pace-item-category">${escapeHtml(cat)}</div>
+            <div class="pace-item-trend trend-muted">No more ${escapeHtml(cat)} spending planned this month</div>
+          `;
+        } else {
+          const dailyAvg = spent / daysElapsed;
+          const projected = dailyAvg * daysInMonth;
+          const diff = projected - budget;
+          const trendClass = diff > 0 ? "trend-over" : "trend-under";
+          const trendText = diff > 0
+            ? `Trending ${formatMoney(diff)} over pace (projected ${formatMoney(projected)})`
+            : `On track — ${formatMoney(-diff)} to spare (projected ${formatMoney(projected)})`;
+          paceItem.className = "pace-item";
+          paceItem.innerHTML = `
+            <div class="pace-item-category">${escapeHtml(cat)}</div>
+            <div class="pace-item-trend ${trendClass}">${trendText}</div>
+          `;
+        }
+
         paceList.appendChild(paceItem);
         paceCount++;
       }
@@ -227,6 +254,27 @@ function renderSummary() {
     paceList.appendChild(empty);
   }
 }
+
+paceList.addEventListener("click", (e) => {
+  const item = e.target.closest(".pace-item");
+  if (!item) return;
+  const cat = item.dataset.category;
+  const { viewYear, viewMonth } = state;
+  const monthKey = `${viewYear}-${pad(viewMonth + 1)}`;
+
+  if (!state.paceOverrides[monthKey]) state.paceOverrides[monthKey] = {};
+  if (state.paceOverrides[monthKey][cat]) {
+    delete state.paceOverrides[monthKey][cat];
+  } else {
+    state.paceOverrides[monthKey][cat] = true;
+  }
+  if (Object.keys(state.paceOverrides[monthKey]).length === 0) {
+    delete state.paceOverrides[monthKey];
+  }
+
+  savePaceOverrides();
+  renderSummary();
+});
 
 summaryBreakdown.addEventListener("change", (e) => {
   if (!e.target.classList.contains("budget-input")) return;

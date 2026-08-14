@@ -8,6 +8,7 @@
   --accent-light: #eef2ff;
   --danger: #dc2626;
   --success: #16a34a;
+  --info: #2563eb;
   --radius: 10px;
   color-scheme: light;
 }
@@ -57,7 +58,7 @@ body {
 
 .header-logo {
   position: fixed;
-  top: 24px;
+  bottom: 24px;
   left: 24px;
   width: 130px;
   height: 130px;
@@ -70,7 +71,7 @@ body {
   .header-logo {
     width: 64px;
     height: 64px;
-    top: 12px;
+    bottom: 12px;
     left: 12px;
   }
 }
@@ -301,6 +302,17 @@ body {
   border: 1px solid var(--border);
   background: var(--bg);
   padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pace-item:hover {
+  border-color: var(--accent);
+}
+
+.pace-item.muted {
+  border-color: var(--info);
+  background: color-mix(in srgb, var(--info) 10%, var(--bg));
 }
 
 .pace-item-category {
@@ -320,6 +332,12 @@ body {
 
 .pace-item-trend.trend-under {
   color: var(--success);
+}
+
+.pace-item-trend.trend-muted {
+  color: var(--info);
+  font-style: normal;
+  font-weight: 600;
 }
 
 .empty-summary {
@@ -484,6 +502,7 @@ select, input[type="text"], input[type="number"] {
     --accent: #818cf8;
     --accent-light: #262a45;
     --success: #4ade80;
+    --info: #60a5fa;
   }
 }
 
