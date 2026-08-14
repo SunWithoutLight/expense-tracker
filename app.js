@@ -438,6 +438,86 @@ document.getElementById("nextMonth").addEventListener("click", () => {
 
 renderCalendar();
 
+// ---------- Export / Import ----------
+
+const exportBtn = document.getElementById("exportBtn");
+const importBtn = document.getElementById("importBtn");
+const importFile = document.getElementById("importFile");
+
+exportBtn.addEventListener("click", () => {
+  const payload = {
+    data: state.data,
+    budgets: state.budgets,
+    paceOverrides: state.paceOverrides,
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const today = new Date();
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trackexpense-backup-${dateKey(today.getFullYear(), today.getMonth(), today.getDate())}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+importBtn.addEventListener("click", () => importFile.click());
+
+importFile.addEventListener("change", () => {
+  const file = importFile.files[0];
+  importFile.value = "";
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    let payload;
+    try {
+      payload = JSON.parse(reader.result);
+    } catch {
+      alert("That file isn't valid — make sure it's a TrackExpense backup file.");
+      return;
+    }
+
+    if (!payload || typeof payload.data !== "object") {
+      alert("That file doesn't look like a TrackExpense backup.");
+      return;
+    }
+
+    let addedEntries = 0;
+    Object.keys(payload.data).forEach(key => {
+      const incoming = Array.isArray(payload.data[key]) ? payload.data[key] : [];
+      const existing = state.data[key] || [];
+      const existingIds = new Set(existing.map(e => e.id));
+      const newOnes = incoming.filter(e => e && e.id && !existingIds.has(e.id));
+      if (newOnes.length > 0) {
+        state.data[key] = existing.concat(newOnes);
+        addedEntries += newOnes.length;
+      }
+    });
+
+    if (payload.budgets && typeof payload.budgets === "object") {
+      Object.assign(state.budgets, payload.budgets);
+    }
+
+    if (payload.paceOverrides && typeof payload.paceOverrides === "object") {
+      Object.entries(payload.paceOverrides).forEach(([monthKey, cats]) => {
+        if (!state.paceOverrides[monthKey]) state.paceOverrides[monthKey] = {};
+        Object.assign(state.paceOverrides[monthKey], cats);
+      });
+    }
+
+    saveData();
+    saveBudgets();
+    savePaceOverrides();
+    renderCalendar();
+
+    alert(`Import complete — added ${addedEntries} new expense${addedEntries === 1 ? "" : "s"}. Existing entries were kept, budgets were updated.`);
+  };
+  reader.readAsText(file);
+});
+
 // ---------- Splash intro ----------
 
 const splash = document.getElementById("splash");

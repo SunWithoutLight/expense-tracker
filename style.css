@@ -92,6 +92,19 @@ body {
   font-weight: 600;
 }
 
+.data-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.data-actions-sep {
+  color: var(--border);
+}
+
 .icon-btn {
   background: var(--surface);
   border: 1px solid var(--border);
