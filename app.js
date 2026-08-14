@@ -200,7 +200,7 @@ function renderSummary() {
           paceItem.className = "pace-item muted";
           paceItem.innerHTML = `
             <div class="pace-item-category">${escapeHtml(cat)}</div>
-            <div class="pace-item-trend trend-muted">No more ${escapeHtml(cat)} spending planned this month</div>
+            <div class="pace-item-trend trend-muted">No more spending planned this month — spent ${formatMoney(spent)} so far</div>
           `;
         } else {
           const dailyAvg = spent / daysElapsed;
