@@ -147,6 +147,10 @@ function renderSummary() {
     ...[...allCategories].filter(c => !CATEGORIES.includes(c)).sort()
   ];
 
+  const today = new Date();
+  const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
+  const daysElapsed = isCurrentMonth ? today.getDate() : 0;
+
   orderedCategories.forEach(cat => {
     const spent = totals[cat] || 0;
     const budget = state.budgets[cat];
@@ -155,6 +159,7 @@ function renderSummary() {
     let statusClass = "";
     let remainingText = "No budget set";
     let pct = 0;
+    let trendHtml = "";
 
     if (hasBudget) {
       const remaining = budget - spent;
@@ -165,6 +170,17 @@ function renderSummary() {
       } else {
         statusClass = "status-under";
         remainingText = `Left: ${formatMoney(remaining)}`;
+      }
+
+      if (isCurrentMonth && daysElapsed > 0) {
+        const dailyAvg = spent / daysElapsed;
+        const projected = dailyAvg * daysInMonth;
+        const diff = projected - budget;
+        const trendClass = diff > 0 ? "trend-over" : "trend-under";
+        const trendText = diff > 0
+          ? `Trending ${formatMoney(diff)} over pace (projected ${formatMoney(projected)})`
+          : `On track — ${formatMoney(-diff)} to spare (projected ${formatMoney(projected)})`;
+        trendHtml = `<div class="trend-line ${trendClass}">${trendText}</div>`;
       }
     }
 
@@ -180,6 +196,7 @@ function renderSummary() {
         <span class="spent-label">Spent: ${formatMoney(spent)}</span>
         <span class="remaining-label">${remainingText}</span>
       </div>
+      ${trendHtml}
     `;
     summaryBreakdown.appendChild(card);
   });

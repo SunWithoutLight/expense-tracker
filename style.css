@@ -269,6 +269,22 @@ body {
   font-weight: 700;
 }
 
+.trend-line {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.74rem;
+  font-style: italic;
+}
+
+.trend-line.trend-over {
+  color: var(--danger);
+}
+
+.trend-line.trend-under {
+  color: var(--success);
+}
+
 .empty-summary {
   color: var(--text-muted);
   font-size: 0.9rem;
